@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>클래식 지렁이 게임 (Snake Game)</title>
+    <style>
+        body {
+            background-color: #1a1a1a;
+            color: #ffffff;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        h1 {
+            margin-bottom: 5px;
+            color: #4CAF50;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        .score-board {
+            font-size: 20px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        canvas {
+            border: 4px solid #4CAF50;
+            background-color: #111111;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+            border-radius: 6px;
+        }
+        .controls-info {
+            margin-top: 15px;
+            color: #aaaaaa;
+            font-size: 14px;
+            text-align: center;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🐍 지렁이 게임 (Snake)</h1>
+    <div class="score-board">점수: <span id="score">0</span>점 | 최고 기록: <span id="highScore">0</span>점</div>
+    
+    <!-- 게임 화면 (캔버스) -->
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+    <div class="controls-info">
+        방향키(←, →, ↑, ↓)를 눌러서 지렁이를 조종하세요!<br>
+        스페이스바(Space) 또는 엔터키를 누르면 게임이 재시작됩니다.
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // 한 칸의 크기 (그리드 단위)
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+
+        // 지렁이 초기 위치 및 몸통 배열
+        let snake = [
+            { x: 10, y: 10 },
+            { x: 9, y: 10 },
+            { x: 8, y: 10 }
+        ];
+        
+        // 먹이 위치
+        let food = { x: 5, y: 5 };
+
+        // 이동 방향 (dx: 가로, dy: 세로)
+        let dx = 1;
+        let dy = 0;
+
+        let score = 0;
+        let highScore = 0;
+        let gameInterval = null;
+        let isGameOver = false;
+        let changeDirectionCalled = false; // 연속 키 입력 오류 방지
+
+        // 게임 시작 초기화 함수
+        function initGame() {
+            snake = [
+                { x: 10, y: 10 },
+                { x: 9, y: 10 },
+                { x: 8, y: 10 }
+            ];
+            dx = 1;
+            dy = 0;
+            score = 0;
+            document.getElementById("score").innerText = score;
+            isGameOver = false;
+            generateFood();
+            
+            if (gameInterval) clearInterval(gameInterval);
+            // 속도 조절 (숫자가 낮아질수록 빨라짐, 현재 100밀리초마다 갱신)
+            gameInterval = setInterval(gameLoop, 100);
+        }
+
+        // 전체 게임 루프 (한 프레임씩 실행)
+        function gameLoop() {
+            update();
+            if (isGameOver) return;
+            draw();
+            changeDirectionCalled = false; // 키 입력 잠금 해제
+        }
+
+        // 게임 상태 업데이트 (이동, 충돌 검사)
+        function update() {
+            // 머리의 다음 위치 계산
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+            // 1. 벽에 부딪혔는지 검사
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+                gameOver();
+                return;
+            }
+
+            // 2. 자기 몸에 부딪혔는지 검사
+            for (let i = 0; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    gameOver();
+                    return;
+                }
+            }
+
+            // 머리를 지렁이 배열의 맨 앞에 추가
+            snake.unshift(head);
+
+            // 3. 먹이를 먹었는지 검사
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                document.getElementById("score").innerText = score;
+                if (score > highScore) {
+                    highScore = score;
+                    document.getElementById("highScore").innerText = highScore;
+                }
+                generateFood(); // 새로운 먹이 생성
+            } else {
+                // 먹이를 안 먹었으면 꼬리 칸을 제거하여 이동하는 효과 연출
+                snake.pop();
+            }
+        }
+
+        // 화면 그리기
+        function draw() {
+            // 배경 지우기
+            ctx.fillStyle = "#111111";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 먹이 그리기 (빨간색 동그라미)
+            ctx.fillStyle = "#FF5252";
+            ctx.beginPath();
+            ctx.arc(
+                (food.x * gridSize) + (gridSize / 2),
+                (food.y * gridSize) + (gridSize / 2),
+                gridSize / 2 - 2,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
+
+            // 지렁이 그리기 (초록색 네모들)
+            snake.forEach((part, index) => {
+                // 머리는 조금 더 밝은 초록색, 몸통은 진한 초록색
+                ctx.fillStyle = index === 0 ? "#4CAF50" : "#81C784";
+                ctx.fillRect(part.x * gridSize, part.y * gridSize, gridSize - 2, gridSize - 2);
+            });
+        }
+
+        // 무작위 위치에 먹이 생성 (지렁이 몸 위에는 안 생기도록 처리)
+        function generateFood() {
+            food.x = Math.floor(Math.random() * tileCount);
+            food.y = Math.floor(Math.random() * tileCount);
+
+            // 생성된 먹이가 지렁이 몸과 겹치면 재귀적으로 다시 생성
+            snake.forEach(part => {
+                if (part.x === food.x && part.y === food.y) {
+                    generateFood();
+                }
+            });
+        }
+
+        // 게임 오버 처리
+        function gameOver() {
+            isGameOver = true;
+            clearInterval(gameInterval);
+
+            // 게임 오버 텍스트 오버레이 그리기
+            ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = "#FFFFFF";
+            ctx.font = "bold 26px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText("게임 오버!", canvas.width / 2, canvas.height / 2 - 15);
+
+            ctx.font = "16px Arial";
+            ctx.fillStyle = "#AAAAAA";
+            ctx.fillText("스페이스바를 눌러 다시 시작", canvas.width / 2, canvas.height / 2 + 20);
+        }
+
+        // 키보드 방향 조종 이벤트 리스너
+        window.addEventListener("keydown", e => {
+            // 게임 오버 상태에서 스페이스바나 엔터를 누르면 재시작
+            if (isGameOver) {
+                if (e.code === "Space" || e.code === "Enter") {
+                    initGame();
+                }
+                return;
+            }
+
+            // 한 프레임에 여러 번 방향을 바꿔 지렁이가 꼬여 죽는 현상 방지
+            if (changeDirectionCalled) return;
+
+            const keyPressed = e.code;
+
+            // 방향키 입력 (반대 방향으로 바로 꺾이는 것은 방지)
+            if ((keyPressed === "ArrowLeft" || keyPressed === "KeyA") && dx === 0) {
+                dx = -1; dy = 0;
+                changeDirectionCalled = true;
+            }
+            if ((keyPressed === "ArrowUp" || keyPressed === "KeyW") && dy === 0) {
+                dx = 0; dy = -1;
+                changeDirectionCalled = true;
+            }
+            if ((keyPressed === "ArrowRight" || keyPressed === "KeyD") && dx === 0) {
+                dx = 1; dy = 0;
+                changeDirectionCalled = true;
+            }
+            if ((keyPressed === "ArrowDown" || keyPressed === "KeyS") && dy === 0) {
+                dx = 0; dy = 1;
+                changeDirectionCalled = true;
+            }
+        });
+
+        // 최초 실행
+        initGame();
+    </script>
+</body>
+</html>
